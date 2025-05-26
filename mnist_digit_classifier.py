@@ -1,78 +1,108 @@
 import numpy as np
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
-from tensorflow.keras.optimizers import Adam
+import matplotlib.pyplot as plt
+import keras
 from keras.datasets import mnist
-from keras.utils import to_categorical
-from keras_tuner.tuners import Hyperband
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.optimizers import Adam
+from keras import utils
+import random
+import requests
+from PIL import Image
+import cv2
 
-# Load and preprocess data
+np.random.seed(0)
 (X_train, y_train), (X_test, y_test) = mnist.load_data()
-X_train = X_train.astype('float32') / 255
-X_test = X_test.astype('float32') / 255
-X_train = X_train.reshape(-1, 784)
-X_test = X_test.reshape(-1, 784)
-y_train = to_categorical(y_train, 10)
-y_test = to_categorical(y_test, 10)
 
-# Model builder for Keras Tuner
-def build_model(hp):
+print(X_train.shape)
+print(X_test.shape)
+print(y_train.shape[0])
+assert(X_train.shape[0] == y_train.shape[0])
+assert(X_test.shape[0] == y_test.shape[0])
+assert(X_train.shape[1:] == (28, 28))
+assert(X_test.shape[1:] == (28, 28))
+
+num_of_samples = []
+cols = 5
+num_classes = 10
+
+fig, axs = plt.subplots(nrows=num_classes, ncols=cols, figsize=(5, 8))
+fig.tight_layout()
+for i in range(cols):
+    for j in range(num_classes):
+        x_selected = X_train[y_train == j]
+        axs[j][i].imshow(x_selected[random.randint(0, len(x_selected) - 1)], cmap=plt.get_cmap("gray"))
+        axs[j][i].axis("off")
+        if i == 2:
+            axs[j][i].set_title(str(j))
+            num_of_samples.append(len(x_selected))
+
+print(num_of_samples)
+plt.figure(figsize=(12, 4))
+plt.bar(range(0, num_classes), num_of_samples)
+plt.title("Distribution of the training dataset")
+plt.xlabel("Class number")
+plt.ylabel("Number of images")
+
+y_train = utils.to_categorical(y_train, 10)
+y_test = utils.to_categorical(y_test, 10)
+
+X_train = X_train / 255
+X_test = X_test / 255
+
+num_pixels = 784
+X_train = X_train.reshape(X_train.shape[0], num_pixels)
+X_test = X_test.reshape(X_test.shape[0], num_pixels)
+
+def create_best_model():
     model = Sequential()
-    model.add(Dense(
-        units=hp.Int('units_input', min_value=32, max_value=512, step=32),
-        activation='relu',
-        input_shape=(784,)
-    ))
-    
-    for i in range(hp.Int('num_hidden_layers', 1, 3)):
-        model.add(Dense(
-            units=hp.Int(f'units_{i}', min_value=32, max_value=512, step=32),
-            activation='relu'
-        ))
+    model.add(Dense(416, input_dim=num_pixels, activation='relu'))  # Input layer
+    model.add(Dense(320, activation='relu'))                 # One hidden layer
+    model.add(Dense(10, activation='softmax'))               # Output layer
 
-    model.add(Dense(10, activation='softmax'))
-
-    model.compile(
-        optimizer=Adam(hp.Float('learning_rate', 1e-4, 1e-2, sampling='log')),
-        loss='categorical_crossentropy',
-        metrics=['accuracy']
-    )
+    optimizer = Adam(learning_rate=0.0006948639754218684)
+    model.compile(optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
     return model
 
-# Initialize tuner
-tuner = Hyperband(
-    build_model,
-    objective='val_accuracy',
-    max_epochs=15,
-    factor=3,
-    directory='mnist_tuning',
-    project_name='digit_classifier'
-)
+model = create_best_model()
+print(model.summary())
 
-# Early stopping
-stop_early = keras.callbacks.EarlyStopping(monitor='val_loss', patience=3)
+history = model.fit(X_train, y_train, validation_split=0.1, epochs=10, batch_size=200, verbose=1, shuffle=True)
 
-# Perform search
-tuner.search(X_train, y_train, epochs=15, validation_split=0.2, callbacks=[stop_early])
+plt.figure()
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.legend(['loss', 'val_loss'])
+plt.title('Loss')
+plt.xlabel('epoch')
 
-# Best model
-best_model = tuner.get_best_models(num_models=1)[0]
-best_hps = tuner.get_best_hyperparameters(1)[0]
+plt.figure()
+plt.plot(history.history['accuracy'])
+plt.plot(history.history['val_accuracy'])
+plt.legend(['accuracy', 'val_accuracy'])
+plt.title('Accuracy')
+plt.xlabel('epoch')
 
-# Output best parameters
-print(f"""
-✅ Best hyperparameters found:
-- Input layer units: {best_hps.get('units_input')}
-- Hidden layers: {best_hps.get('num_hidden_layers')}
-- Units per hidden layer: {[best_hps.get(f'units_{i}') for i in range(best_hps.get('num_hidden_layers'))]}
-- Learning rate: {best_hps.get('learning_rate')}
-""")
+score = model.evaluate(X_test, y_test, verbose=0)
+print('Test score:', score[0])
+print('Test accuracy:', score[1])
 
-# Retrain best model (optional)
-history = best_model.fit(X_train, y_train, validation_split=0.2, epochs=10, batch_size=128)
+# Predict a digit from external image
+url = 'https://colah.github.io/posts/2014-10-Visualizing-MNIST/img/mnist_pca/MNIST-p1815-4.png'
+response = requests.get(url, stream=True)
+img = Image.open(response.raw)
+plt.imshow(img, cmap=plt.get_cmap('gray'))
 
-# Evaluate
-loss, acc = best_model.evaluate(X_test, y_test)
-print(f"🧪 Test accuracy: {acc:.4f}")
+img = np.asarray(img)
+img = cv2.resize(img, (28, 28))
+img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+img = cv2.bitwise_not(img)
+plt.figure()
+plt.imshow(img, cmap=plt.get_cmap('gray'))
+
+img = img / 255
+img = img.reshape(1, 784)
+
+# Updated prediction method
+prediction = np.argmax(model.predict(img), axis=-1)
+print("Predicted digit:", str(prediction[0]))
