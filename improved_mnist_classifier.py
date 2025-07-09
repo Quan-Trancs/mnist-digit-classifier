@@ -1,3 +1,4 @@
+# type: ignore
 import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
@@ -332,7 +333,7 @@ def main():
     classifier.save_model()
     classifier.save_history()
     
-    print(f"\n🎉 Training completed!")
+    print(f"\n Training completed!")
     print(f"Final Test Accuracy: {test_accuracy:.4f}")
     print(f"Final Test Loss: {test_loss:.4f}")
 

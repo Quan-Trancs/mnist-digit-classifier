@@ -1,3 +1,4 @@
+# type: ignore
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
@@ -254,7 +255,7 @@ class ImprovedMNISTTuner:
             print(f"   Dense2 units: {self.best_hps.get('dense2_units')}")
         
         # Training parameters
-        print(f"\n⚙️ Training Parameters:")
+        print(f"\n Training Parameters:")
         print(f"   Learning rate: {self.best_hps.get('learning_rate'):.6f}")
         
         print("="*50)
@@ -363,7 +364,7 @@ def main():
     
     # Optional: Retrain with more epochs
     print("\n" + "="*50)
-    print("🔄 RETRAINING WITH MORE EPOCHS")
+    print("RETRAINING WITH MORE EPOCHS")
     print("="*50)
     retrained_model, history = tuner.retrain_best_model(epochs=50, batch_size=64)
     

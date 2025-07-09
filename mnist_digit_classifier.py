@@ -1,3 +1,4 @@
+# type: ignore
 import numpy as np
 import matplotlib.pyplot as plt
 import keras
@@ -61,7 +62,7 @@ def create_best_model():
     model.add(Dense(10, activation='softmax'))               # Output layer
 
     optimizer = Adam(learning_rate=0.0006948639754218684)
-    model.compile(optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+    model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
     return model
 
 model = create_best_model()
